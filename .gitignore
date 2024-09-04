@@ -1,0 +1,11 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+#amplify-do-not-edit-begin
+build/
+dist/
+node_modules/
+.secret-*
+**.sample
+#amplify-do-not-edit-end

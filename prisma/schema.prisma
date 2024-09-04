@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  user_id           String    @id @default(uuid())
+  email             String    @unique
+  full_name         String?
+  phone_number      String?
+  registration_date DateTime  @default(now())
+  last_login_date   DateTime?
+  is_active         Boolean   @default(true)
+  address           Address[]
+  cart              Cart[]
+  Order             Order[]
+  reviews           Review[]
+  otp               U_OTP?
+}
+
+model Admin {
+  admin_id   String    @id @default(uuid())
+  password   String
+  full_name  String
+  role       AdminRole @default(moderator)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  email      String    @unique
+  otp        A_OTP?
+}
+
+model A_OTP {
+  admin_id   String   @id
+  code       String
+  created_at DateTime @default(now())
+  expires_at DateTime
+  admin      Admin    @relation(fields: [admin_id], references: [admin_id])
+}
+
+model U_OTP {
+  user_id    String   @id @unique
+  code       String
+  created_at DateTime @default(now())
+  expires_at DateTime
+  user       User     @relation(fields: [user_id], references: [user_id])
+}
+
+model Address {
+  address_id  String  @id @default(uuid())
+  city        String
+  state       String
+  country     String
+  postal_code String
+  user_id     String
+  street      String
+  user        User    @relation(fields: [user_id], references: [user_id])
+  orders      Order[]
+}
+
+model Category {
+  category_id String    @id @default(uuid())
+  name        String
+  description String?
+  products    Product[]
+}
+
+model Product {
+  product_id              String         @id @default(uuid())
+  name                    String
+  description             String
+  price                   Float
+  SKU                     String         @unique
+  category_id             String
+  availability            Int            @default(0)
+  assembly_required       String?
+  brand                   String         @default("Triumph Lights")
+  brightness              String?
+  controller_type         String?
+  design_style            String?
+  embellishment           String?
+  fixture_form            String?
+  fixture_type            String?
+  height                  String
+  ideal_for               String?
+  included_components     String?
+  installation            String?
+  item_weight             String
+  key_features            String?
+  length                  String
+  light_color             String?
+  light_color_temperature String?
+  light_source            String?
+  lighting_method         String?
+  material                String?
+  mounting_type           String?
+  number_of_light_sources String?
+  power_rating            String?
+  power_source            String?
+  primary_material        String?
+  quantity                String?
+  shade_color             String?
+  shade_material          String?
+  shape                   String?
+  surge_protection        String?
+  switch_type             String?
+  voltage                 String?
+  width                   String
+  switch_mounting         String?
+  batteries               String?
+  discount_percent        Float          @default(0)
+  CartItem                CartItem[]
+  OrderItem               OrderItem[]
+  category                Category       @relation(fields: [category_id], references: [category_id])
+  colors                  ProductColor[]
+  images                  ProductImage[]
+  reviews                 Review[]
+}
+
+model ProductColor {
+  color_id   String
+  product_id String
+  color      Color   @relation(fields: [color_id], references: [color_id])
+  product    Product @relation(fields: [product_id], references: [product_id])
+
+  @@id([product_id, color_id])
+}
+
+model Color {
+  color_id   String         @id @default(uuid())
+  color_name String
+  hex        String         @unique
+  products   ProductColor[]
+}
+
+model ProductImage {
+  image_id   String  @id @default(uuid())
+  url        String
+  product_id String
+  key        String
+  product    Product @relation(fields: [product_id], references: [product_id])
+}
+
+model Review {
+  review_id    String        @id @default(uuid())
+  user_id      String
+  product_id   String
+  rating       Int
+  review_text  String
+  review_date  DateTime      @default(now())
+  product      Product       @relation(fields: [product_id], references: [product_id])
+  user         User          @relation(fields: [user_id], references: [user_id])
+  reviewImages ReviewImage[]
+}
+
+model ReviewImage {
+  image_id  String @id @default(uuid())
+  url       String
+  review_id String
+  key       String
+  review    Review @relation(fields: [review_id], references: [review_id])
+}
+
+model Cart {
+  cart_id      String     @id @default(uuid())
+  user_id      String?
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
+  is_temporary Boolean    @default(false)
+  user         User?      @relation(fields: [user_id], references: [user_id])
+  cartItems    CartItem[]
+}
+
+model CartItem {
+  cart_item_id String  @id @default(uuid())
+  cart_id      String
+  product_id   String
+  quantity     Int
+  color        String
+  cart         Cart    @relation(fields: [cart_id], references: [cart_id])
+  product      Product @relation(fields: [product_id], references: [product_id])
+
+  @@unique([cart_id, product_id])
+}
+
+model Order {
+  order_id                      String      @id @default(uuid())
+  user_id                       String
+  order_date                    DateTime    @default(now())
+  total_amount                  Float
+  payment_method                String
+  shipping_address_id           String
+  discount                      Float
+  shipping_charges              Float?
+  sub_total                     Float
+  tax_amount                    Float
+  status                        orderStatus
+  shiprocket_status             String?
+  shiprocket_tracking_url       String?
+  shiprocket_shipment_id        String?
+  shiprocket_order_id           String?
+  shiprocket_awb_code           String?
+  shiprocket_courier_partner_id String?
+  shiprocket_estimated_delivery String?
+  shiprocket_shipment_label_url String?
+  shiprocket_manifest_url       String?
+  shiprocket_updated_at         DateTime?
+  shiprocket_channel_order_id   String?
+  shipping_address              Address     @relation(fields: [shipping_address_id], references: [address_id])
+  user                          User        @relation(fields: [user_id], references: [user_id])
+  order_items                   OrderItem[]
+}
+
+model OrderItem {
+  order_item_id String  @id @default(uuid())
+  order_id      String
+  product_id    String
+  quantity      Int
+  unit_price    Float
+  subTotal      Float
+  discount      Float
+  color         String
+  order         Order   @relation(fields: [order_id], references: [order_id])
+  product       Product @relation(fields: [product_id], references: [product_id])
+}
+
+enum AdminRole {
+  admin
+  moderator
+}
+
+enum orderStatus {
+  processing
+  shipped
+  delivered
+  cancelled
+  returned
+}
