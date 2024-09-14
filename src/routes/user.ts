@@ -261,7 +261,7 @@ userRouter.get('/data', userAuthMiddleware, async (req, res) => {
 userRouter.post('/add', userAuthMiddleware, async (req, res) => {
     const body = req.body
     const user_id = req.user_id
-    
+
     const { success, error } = addressSchema.safeParse(body)
 
     if (!success) {
@@ -280,7 +280,7 @@ userRouter.post('/add', userAuthMiddleware, async (req, res) => {
     }
 
     try {
-       
+
         if (body.street && body.city && body.state && body.country && body.postal_code) {
             const address = await prisma.address.create({
                 data: {
@@ -299,7 +299,7 @@ userRouter.post('/add', userAuthMiddleware, async (req, res) => {
                 address: address
             })
         }
-        
+
 
         if (body.phone_number) {
             await prisma.user.update({
@@ -392,7 +392,7 @@ userRouter.post('/create/cart', userIsLoggedIn, async (req, res) => {
         const existingCart = await prisma.cart.findFirst({
             where: {
                 user_id: user_id,
-                is_temporary: is_temporary ,  // Check by cart type
+                is_temporary: is_temporary,  // Check by cart type
             },
         });
 
@@ -406,9 +406,9 @@ userRouter.post('/create/cart', userIsLoggedIn, async (req, res) => {
                 cartToken: existCartToken,
             });
         }
-        
+
         let newCart;
-        
+
         if (is_temporary) {
             if (user_id) {
                 // Create a new temporary cart for an existing user
@@ -491,7 +491,7 @@ userRouter.put('/add-user-id/:cart_id', userAuthMiddleware, async (req, res) => 
 userRouter.post('/addToCart/:product_id', async (req, res) => {
     const product_id = req.params.product_id
     const cartToken = req.headers['cart-token'] as string
-
+    const {watt_id} = req.body
     try {
         let decoded
         if (cartToken) {
@@ -502,7 +502,7 @@ userRouter.post('/addToCart/:product_id', async (req, res) => {
                 message: "Cart Token is not given"
             })
         }
-
+         
 
         const productExist = await prisma.product.findUnique({
             where: {
@@ -513,6 +513,20 @@ userRouter.post('/addToCart/:product_id', async (req, res) => {
             return res.status(statusCode.NOT_FOUND).json({
                 success: true,
                 message: "Product Not Found"
+            })
+        }
+
+        const variant = await prisma.productWatt.findUnique({
+            where: {
+                watt_id: watt_id,
+                product_id: product_id
+            }
+        })
+
+        if (!variant) {
+            return res.status(statusCode.NOT_FOUND).json({
+                success: false,
+                message: "Product Watt Variant Not Found"
             })
         }
 
@@ -556,7 +570,9 @@ userRouter.post('/addToCart/:product_id', async (req, res) => {
                     product_id: product_id,
                     cart_id: decoded.cart_id,
                     quantity: req.body.quantity,
-                    color: req.body.color
+                    color: req.body.color,
+                    watt_id: watt_id
+
                 }
             });
         }
@@ -734,7 +750,8 @@ userRouter.get("/cart", async (req, res) => {
                 user_id: true,
                 cartItems: {
                     include: {
-                        product: true, // This will include all fields of the related Product model
+                        product: true,
+                        watt:true // This will include all fields of the related Product model
                     },
                 }
             }
@@ -777,7 +794,7 @@ userRouter.delete('/delete/cart/tempCartItems', userAuthMiddleware, async (req, 
             success: true,
             message: "Temporary Cart Items Deleted Successfully"
         })
-    }catch(error){
+    } catch (error) {
         console.log(error)
         handleErrorResponse(res, error as CustomError, statusCode.INTERNAL_SERVER_ERROR)
     }
@@ -967,7 +984,7 @@ userRouter.delete('/delete/review/:review_id', userAuthMiddleware, async (req, r
                 message: "Review Not Found"
             })
         }
-        review.reviewImages.map(async (image) => {
+        review.reviewImages.map(async (image: any) => {
             await deleteObjectS3(image.key)
         })
 
@@ -993,9 +1010,9 @@ userRouter.delete('/delete/review/:review_id', userAuthMiddleware, async (req, r
     }
 })
 
-userRouter.post(`/cart/bill/:cart_id`, async(req,res)=>{
+userRouter.post(`/cart/bill/:cart_id`, async (req, res) => {
     const cart_id = req.params.cart_id
-    const{address_id , pickup_location_name} = req.body
+    const { address_id, pickup_location_name } = req.body
     try {
         const cart = await prisma.cart.findUnique({
             where: {
@@ -1004,18 +1021,29 @@ userRouter.post(`/cart/bill/:cart_id`, async(req,res)=>{
             include: {
                 cartItems: {
                     include: {
-                        product: true
+                        product: true,
+                        watt: true
                     }
                 }
             }
         })
         if (!cart) {
             return res.status(statusCode.BAD_REQUEST).json({
-                success:false,
-                message:"Cart Not Found"
+                success: false,
+                message: "Cart Not Found"
             })
         }
-        
+
+        const hasUndefinedWatt = cart.cartItems.some(item => item.watt === null || item.watt === undefined);
+
+        if (hasUndefinedWatt) {
+            return res.status(statusCode.BAD_REQUEST).json({
+                success: false,
+                message: "Some cart items have undefined or null productVariant watt",
+            });
+        }
+
+
         const address = await prisma.address.findUnique({
             where: {
                 address_id: address_id
@@ -1029,15 +1057,15 @@ userRouter.post(`/cart/bill/:cart_id`, async(req,res)=>{
             })
         }
 
-        const bill = await billing(cart.cartItems,address,18,pickup_location_name)
-        
-   
+        const bill = await billing(cart.cartItems, address, 18, pickup_location_name)
+
+
         return res.status(statusCode.OK).json({
             success: true,
             message: "Bill Generated",
             bill: bill
         })
-    }catch(error){
+    } catch (error) {
         handleErrorResponse(res, error as CustomError, statusCode.INTERNAL_SERVER_ERROR)
     }
 })

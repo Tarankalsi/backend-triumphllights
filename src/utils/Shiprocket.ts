@@ -1,4 +1,5 @@
 import { Address, Order, Product, Cart } from "@prisma/client";
+import { int } from "aws-sdk/clients/datapipeline";
 import axios from "axios";
 import { number, string, object } from "zod";
 
@@ -43,73 +44,103 @@ type Dimensions = {
     width: number;
 }
 
+type cartItemsWithWattDetails = {
+  product_id: string;
+  quantity: number;
+  price: number;
+  subTotal: number;
+  discount: number;
+  color: String;
+  watt: number;
+}
+
 // Helper Function for Headers
 const getShiprocketHeaders = () => ({
     Authorization: `Bearer ${process.env.SHIPROCKET_API_TOKEN}`
 });
 
 // Create Shiprocket Shipment
-
 export const createShiprocketShipment = async (
-    order: Order,
-    user: User,
-    cartItems: CartItem[],
-    address: Address,
-    totalWeight: number,
-    dimensions: Dimensions
-  ) => {
-    try {
-      const response = await axios.post(
-        'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc',
-        {
-          order_id: order.order_id,
-          order_date: order.order_date.toISOString(),
-          billing_customer_name: user.full_name || '',
-          billing_last_name: '',
-          billing_address: address.street,
-          billing_city: address.city,
-          billing_pincode: address.postal_code,
-          billing_state: address.state,
-          billing_country: address.country,
-          billing_email: user.email || '',
-          billing_phone: user.phone_number || '',
-          shipping_is_billing: true,
-          order_items: cartItems.map((item) => ({
-            name: item.product.name,
-            sku: item.product.SKU,
+  order: Order,
+  user: User,
+  cartItems: CartItem[],
+  address: Address,
+  totalWeight: number,
+  dimensions: Dimensions,
+  cartItemsWithWattDetails: cartItemsWithWattDetails[],
+  pickup_location_name: string,
+) => {
+  try {
+    // Define the GST rate (replace with the actual rate)
+    const GST_RATE = 0.18; // 18% GST
+
+    const response = await axios.post(
+      'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc',
+      {
+        order_id: order.order_id,
+        order_date: order.order_date.toISOString(),
+        pickup_location:pickup_location_name,
+        billing_customer_name: user.full_name || '',
+        billing_last_name: '',
+        billing_address: address.street,
+        billing_city: address.city,
+        billing_pincode: address.postal_code,
+        billing_state: address.state,
+        billing_country: address.country,
+        billing_email: user.email || '',
+        billing_phone: user.phone_number || '',
+        shipping_is_billing: true,
+        order_items: cartItemsWithWattDetails.map((item) => {
+          const matchingCartItem = cartItems.find(
+            (ci) => ci.product_id === item.product_id
+          );
+
+          const basePrice = item.price; // Selling price without GST
+          const gstInclusivePrice = basePrice * (1 + GST_RATE); // Inclusive of GST
+
+          return {
+            name: matchingCartItem?.product.name,
+            sku: matchingCartItem?.product.SKU,
             units: item.quantity,
-            selling_price: item.product.price,
-            discount: (item.product.discount_percent / 100) * item.product.price || 0,
-          })),
-          payment_method: order.payment_method,
-          sub_total: order.sub_total,
-          weight: totalWeight,
-          length: dimensions.length,
-          breadth: dimensions.width,
-          height: dimensions.height,
-        },
-        {
-          headers: getShiprocketHeaders(),
-        }
-      );
-  
-      return response.data;
-    } catch (error: any) {
-      if (error.response) {
-        // The request was made, and the server responded with a status code that falls out of the range of 2xx
-        console.error('Shiprocket API responded with an error:', error.response.data);
-        throw new Error(`Failed to create Shiprocket shipment. API Error: ${error.response.data.message || 'Unknown error'}`);
-      } else if (error.request) {
-        // The request was made but no response was received
-        console.error('No response received from Shiprocket API:', error.request);
-        throw new Error('Failed to create Shiprocket shipment. No response received from the Shiprocket API.');
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        console.error('Error setting up the request to Shiprocket API:', error.message);
-        throw new Error(`Failed to create Shiprocket shipment. Error: ${error.message}`);
+            selling_price: gstInclusivePrice.toFixed(2), // Price inclusive of GST, formatted to 2 decimal places
+            discount: item.discount,
+            color: item.color,
+            watt: item.watt,
+          };
+        }),
+        payment_method: order.payment_method,
+        shipping_charges: order.shipping_charges,
+        sub_total: (order.sub_total - order.discount + order.tax_amount).toFixed(2),
+        weight: totalWeight,
+        length: dimensions.length,
+        breadth: dimensions.width,
+        height: dimensions.height,
+      },
+      {
+        headers: getShiprocketHeaders(),
       }
+    );
+
+    return response.data;
+  } catch (error: any) {
+    if (error.response) {
+      // The request was made, and the server responded with a status code that falls out of the range of 2xx
+      console.error('Shiprocket API responded with an error:', error.response.data);
+      throw new Error(
+        `Failed to create Shiprocket shipment. API Error: ${error.response.data.message || 'Unknown error'}`
+      );
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('No response received from Shiprocket API:', error.request);
+      throw new Error('Failed to create Shiprocket shipment. No response received from the Shiprocket API.');
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Error setting up the request to Shiprocket API:', error.message);
+      throw new Error(`Failed to create Shiprocket shipment. Error: ${error.message}`);
     }
-  };
+  }
+};
+
 
 // Select Best Courier
 export const selectBestCourier = async (packageDetails: PackageDetails) => {
@@ -121,11 +152,13 @@ export const selectBestCourier = async (packageDetails: PackageDetails) => {
       { headers: getShiprocketHeaders() }
     );
 
-
+    
     const pickupPincode = pickupResponse.data.data.shipping_address.find(
       (address: any) => address.pickup_location === packageDetails.pickup_address_location
     )?.pin_code;
 
+    console.log("Pickup location :", pickupPincode)
+    console.log("package details :", packageDetails)
     if (!pickupPincode) {
       throw new Error('Pickup pincode not found for the specified pickup address location.');
     }
@@ -182,7 +215,7 @@ export const selectBestCourier = async (packageDetails: PackageDetails) => {
 
     return bestCourier;
   } catch (error: any) {
-    console.error('Error fetching Shiprocket courier partners:', error.message || error);
+    console.error('Error fetching Shiprocket courier partners:', error.message );
     throw new Error('Error fetching Shiprocket courier partners.');
   }
 };

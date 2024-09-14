@@ -18,7 +18,7 @@ interface JwtPayload {
 
 const JWT_SECRET_KEY_USER = process.env.JWT_SECRET_KEY_USER;
 const JWT_SECRET_KEY_ADMIN = process.env.JWT_SECRET_KEY_ADMIN;
-
+console.log("jwt secret key : "+ process.env.JWT_SECRET_KEY_USER)
 if (!JWT_SECRET_KEY_USER || !JWT_SECRET_KEY_ADMIN) {
     throw new Error(' jwt secret keys must be defined in the environment variables');
 }

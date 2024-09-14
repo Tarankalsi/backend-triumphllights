@@ -72,7 +72,6 @@ model Product {
   product_id              String         @id @default(uuid())
   name                    String
   description             String
-  price                   Float
   SKU                     String         @unique
   category_id             String
   availability            Int            @default(0)
@@ -84,13 +83,13 @@ model Product {
   embellishment           String?
   fixture_form            String?
   fixture_type            String?
-  height                  String
+  height                  Float
   ideal_for               String?
   included_components     String?
   installation            String?
-  item_weight             String
+  item_weight             Float
   key_features            String?
-  length                  String
+  length                  Float
   light_color             String?
   light_color_temperature String?
   light_source            String?
@@ -108,7 +107,7 @@ model Product {
   surge_protection        String?
   switch_type             String?
   voltage                 String?
-  width                   String
+  width                   Float
   switch_mounting         String?
   batteries               String?
   discount_percent        Float          @default(0)
@@ -118,16 +117,30 @@ model Product {
   colors                  ProductColor[]
   images                  ProductImage[]
   reviews                 Review[]
+  watts                   ProductWatt[]
 }
+
+model ProductWatt {
+  watt_id    String  @id @default(uuid())
+  product_id String
+  watt       Int
+  price      Float
+
+  product    Product  @relation(fields: [product_id], references: [product_id])
+  cartItems  CartItem[]
+
+  @@index([product_id]) // Index for optimizing queries by product_id
+}
+
 
 model ProductColor {
   color_id   String
   product_id String
   color      Color   @relation(fields: [color_id], references: [color_id])
   product    Product @relation(fields: [product_id], references: [product_id])
-
   @@id([product_id, color_id])
 }
+
 
 model Color {
   color_id   String         @id @default(uuid())
@@ -175,16 +188,21 @@ model Cart {
 }
 
 model CartItem {
+
   cart_item_id String  @id @default(uuid())
   cart_id      String
   product_id   String
   quantity     Int
   color        String
-  cart         Cart    @relation(fields: [cart_id], references: [cart_id])
-  product      Product @relation(fields: [product_id], references: [product_id])
+  watt_id      String?
+  cart         Cart         @relation(fields: [cart_id], references: [cart_id])
+  product      Product      @relation(fields: [product_id], references: [product_id])
+  watt         ProductWatt?  @relation(fields: [watt_id], references: [watt_id])
 
+  // Updated unique constraint to account for different color and watt combinations
   @@unique([cart_id, product_id])
 }
+
 
 model Order {
   order_id                      String      @id @default(uuid())
@@ -223,6 +241,7 @@ model OrderItem {
   subTotal      Float
   discount      Float
   color         String
+  watt          Int?
   order         Order   @relation(fields: [order_id], references: [order_id])
   product       Product @relation(fields: [product_id], references: [product_id])
 }

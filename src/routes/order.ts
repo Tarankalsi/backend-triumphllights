@@ -93,16 +93,22 @@ orderRouter.post("/create", userAuthMiddleware, async (req, res) => {
       });
     }
 
+
     // Fetch Cart and Cart Items
     const cart = await prisma.cart.findUnique({
       where: { cart_id: decoded.cart_id },
       select: {
         cart_id: true,
         cartItems: {
-          include: { product: true },
+          include: {
+            product: true,
+            watt: true
+          },
         },
       },
     });
+
+
 
     if (!cart || !cart.cartItems.length) {
       return res.status(statusCode.NOT_FOUND).json({
@@ -111,9 +117,18 @@ orderRouter.post("/create", userAuthMiddleware, async (req, res) => {
       });
     }
 
+    const hasUndefinedWatt = cart.cartItems.some(item => item.watt === null || item.watt === undefined);
+
+    if (hasUndefinedWatt) {
+      return res.status(statusCode.BAD_REQUEST).json({
+        success: false,
+        message: "Some cart items have undefined or null productVariant watt",
+      });
+    }
+
     // Calculate the total weight
     const totalWeight = cart.cartItems.reduce((weight, cartItem) => {
-      return weight + (parseFloat(cartItem.product.item_weight) * cartItem.quantity) / 1000;
+      return weight + (cartItem.product.item_weight * cartItem.quantity) / 1000;
     }, 0);
 
     const bill = await billing(cart.cartItems, address, 18, body.pickup_location_name);
@@ -145,19 +160,46 @@ orderRouter.post("/create", userAuthMiddleware, async (req, res) => {
         })
       );
 
+      // Step 1: Fetch watt details for each cart item
+      const cartItemsWithWattDetails = await Promise.all(
+        cart.cartItems.map(async (item) => {
+          // Fetch the ProductWatt details by watt_id
+          const productWatt = await prisma.productWatt.findUnique({
+            where: { watt_id: item.watt_id as string },
+            select: { watt: true, price: true },
+          });
+
+          if (!productWatt) {
+            throw new Error(`Watt details not found for watt_id: ${item.watt_id}`);
+          }
+
+          return {
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price: productWatt.price,
+            subTotal: productWatt.price * item.quantity,
+            discount: (item.product.discount_percent / 100) * productWatt.price || 0,
+            color: item.color,
+            watt: productWatt.watt, // Added watt detail
+          };
+        })
+      );
+
+
       // Create the Order
       const newOrder = await prisma.order.create({
         data: {
           user_id: user_id as string,
           order_items: {
             createMany: {
-              data: cart.cartItems.map(item => ({
+              data: cartItemsWithWattDetails.map(item => ({
                 product_id: item.product_id,
                 quantity: item.quantity,
-                unit_price: item.product.price,
-                subTotal: item.product.price * item.quantity,
-                discount: (item.product.discount_percent / 100 * item.product.price) ?? 0,
+                unit_price: item.price,
+                subTotal: item.subTotal,
+                discount: item.discount,
                 color: item.color,
+                watt: item.watt
               })),
             },
           },
@@ -174,13 +216,13 @@ orderRouter.post("/create", userAuthMiddleware, async (req, res) => {
 
       // Shipping Logic with Error Handling
       const dimensions = {
-        length: parseFloat(cart.cartItems[0].product.length),
-        width: parseFloat(cart.cartItems[0].product.width),
-        height: parseFloat(cart.cartItems[0].product.height),
+        length: cart.cartItems[0].product.length,
+        width: cart.cartItems[0].product.width,
+        height: cart.cartItems[0].product.height,
       };
 
       try {
-        const shiprocketOrder = await createShiprocketShipment(newOrder, user, cart.cartItems, address, totalWeight, dimensions);
+        const shiprocketOrder = await createShiprocketShipment(newOrder, user, cart.cartItems, address, totalWeight, dimensions, cartItemsWithWattDetails , body.pickup_location_name);
         if (shiprocketOrder.status_code !== 1) { // Adjusted condition for successful status code
           throw new Error("Shiprocket Order could not be created.");
         }
@@ -277,12 +319,12 @@ orderRouter.post("/create", userAuthMiddleware, async (req, res) => {
           </tr>
         </thead>
         <tbody>
-          ${cart.cartItems.map(item => `
+          ${cartItemsWithWattDetails.map(item => `
           <tr>
-            <td>${item.product.name}</td>
+            <td>${cart.cartItems.find(ci => ci.product_id === item.product_id)?.product.name}</td>
             <td>${item.quantity}</td>
-            <td>${item.product.price}</td>
-            <td>${item.product.price * item.quantity}</td>
+            <td>${item.price}</td>
+            <td>${item.price * item.quantity}</td>
           </tr>`).join('')}
         </tbody>
       </table>

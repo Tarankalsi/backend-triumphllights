@@ -83,9 +83,9 @@ productRouter.delete(`/delete/category/:category_id`, adminAuthMiddleware, async
       },
     })
 
-    if (productExist.length > 0)  {
+    if (productExist.length > 0) {
       return res.status(statusCode.FORBIDDEN).json({
-        success : false,
+        success: false,
         message: "Cannot delete category with associated products"
       })
     }
@@ -115,9 +115,11 @@ productRouter.post("/create/product/:category_id", adminAuthMiddleware, async (r
   try {
     // Check if the category exists
     const categoryId = req.params.category_id;
+    console.log(categoryId)
     const category = await prisma.category.findUnique({
       where: { category_id: categoryId },
     });
+    console.log("category" , category)
 
     if (!category) {
       return res.status(statusCode.BAD_REQUEST).json({
@@ -126,41 +128,49 @@ productRouter.post("/create/product/:category_id", adminAuthMiddleware, async (r
       });
     }
 
-    const { colors, ...productData } = data;
+    const { colors, watts, ...productData } = data;
 
     // Create the product
     const product = await prisma.product.create({
       data: {
         ...productData,
         category_id: req.params.category_id,
-
+        watts: {
+          createMany: {
+            data: watts.map((watt) => ({
+              watt: watt.watt,
+              price: watt.price,
+            })),
+          }
+        }
       },
     });
 
-    if (colors) {
-      for (const clr of colors) {
-        let existingColor = await prisma.color.findUnique({
-          where: { hex: clr.hex },
-        });
-
-
-        if (!existingColor) {
-          existingColor = await prisma.color.create({
-            data: {
-              color_name: clr.color_name,
-              hex: clr.hex,
-            },
+    // Handle Colors - Using Promise.all for concurrency
+    if (colors && colors.length > 0) {
+      await Promise.all(
+        colors.map(async (clr) => {
+          let existingColor = await prisma.color.findUnique({
+            where: { hex: clr.hex },
           });
 
-        }
+          if (!existingColor) {
+            existingColor = await prisma.color.create({
+              data: {
+                color_name: clr.color_name,
+                hex: clr.hex,
+              },
+            });
+          }
 
-        await prisma.productColor.create({
-          data: {
-            product_id: product.product_id,
-            color_id: existingColor.color_id,
-          },
-        });
-      }
+          await prisma.productColor.create({
+            data: {
+              product_id: product.product_id,
+              color_id: existingColor.color_id,
+            },
+          });
+        })
+      );
     }
 
     return res.status(statusCode.OK).json({
@@ -300,7 +310,7 @@ productRouter.post('/update/product/:product_id', adminAuthMiddleware, async (re
     }
 
     // Extract the color field if it exists
-    const { colors, ...productData } = data;
+    const { colors, watts, ...productData } = data;
 
     // Update the product details (excluding color)
     const product = await prisma.product.update({
@@ -349,6 +359,42 @@ productRouter.post('/update/product/:product_id', adminAuthMiddleware, async (re
             },
           });
 
+        }
+      }
+    }
+    
+    if (watts) {
+      for (const watt of watts) {
+        const {watt: wattValue, price } = watt;
+
+        // Check if the watt entry already exists for the product
+        const wattExists = await prisma.productWatt.findFirst({
+          where: {
+            product_id: product.product_id,
+            watt: wattValue,
+          },
+        });
+
+        if (wattExists) {
+          // If it exists, update the watt and price
+          await prisma.productWatt.update({
+            where: {
+              watt_id: wattExists.watt_id,
+            },
+            data: {
+              watt: wattValue,
+              price,
+            },
+          });
+        } else {
+          // If it doesn't exist, create a new watt entry
+          await prisma.productWatt.create({
+            data: {
+              product_id: product.product_id,
+              watt: wattValue,
+              price,
+            },
+          });
         }
       }
     }
@@ -436,7 +482,6 @@ productRouter.get("/category/:category_id", async (req, res) => {
         category_id: true,
         name: true,
         description: true,
-        price: true,
         discount_percent: true,
         availability: true,
         SKU: true,
@@ -478,7 +523,8 @@ productRouter.get("/category/:category_id", async (req, res) => {
         colors: true,
         reviews: true,
         images: true,
-        category: true
+        category: true,
+        watts: true
       }
     })
 
@@ -528,9 +574,6 @@ productRouter.get("/categories", async (req, res) => {
   }
 })
 
-
-
-
 interface cartTokenPayload {
   cart_id: string;
 }
@@ -562,7 +605,7 @@ productRouter.post('/create/cart', async (req, res) => {
 productRouter.post('/addToCart/:product_id', async (req, res) => {
   const product_id = req.params.product_id
   const cartToken = req.headers['cart-token'] as string
-
+  
   try {
     let decoded
     if (cartToken) {
@@ -627,7 +670,8 @@ productRouter.post('/addToCart/:product_id', async (req, res) => {
           product_id: product_id,
           cart_id: decoded.cart_id,
           quantity: req.body.quantity,
-          color: req.body.color
+          color: req.body.color,
+          watt_id : req.body.watt_id
         }
       });
     }
@@ -641,7 +685,6 @@ productRouter.post('/addToCart/:product_id', async (req, res) => {
     handleErrorResponse(res, error as CustomError, statusCode.INTERNAL_SERVER_ERROR)
   }
 })
-
 
 // Update behaviour when user is logged in
 productRouter.get("/cart", async (req, res) => {
@@ -738,7 +781,6 @@ productRouter.get('/search', async (req, res) => {
   }
 });
 
-
 productRouter.get("/colors", async (req, res) => {
   try {
 
@@ -771,7 +813,6 @@ productRouter.get("/all", async (req, res) => {
         category_id: true,
         name: true,
         description: true,
-        price: true,
         discount_percent: true,
         availability: true,
         SKU: true,
@@ -822,6 +863,7 @@ productRouter.get("/all", async (req, res) => {
         },
         reviews: true,
         images: true,
+        watts: true
       },
     });
 
@@ -868,7 +910,6 @@ productRouter.get("/:product_id", async (req, res) => {
         category_id: true,
         name: true,
         description: true,
-        price: true,
         discount_percent: true,
         availability: true,
         SKU: true,
@@ -914,7 +955,8 @@ productRouter.get("/:product_id", async (req, res) => {
           },
         },
         reviews: true,
-        images: true
+        images: true,
+        watts: true
       }
     })
 
@@ -949,7 +991,8 @@ productRouter.delete("/delete/:product_id", adminAuthMiddleware, async (req, res
         reviews: true,
         images: true,
         CartItem: true,
-        OrderItem: true
+        OrderItem: true,
+        watts: true,
       }
     });
 
@@ -969,6 +1012,14 @@ productRouter.delete("/delete/:product_id", adminAuthMiddleware, async (req, res
             product_id: product_id
           }
         });
+      }
+
+      if (productExist.watts.length > 0) {
+        await transaction.productWatt.deleteMany({
+          where: {
+            product_id: product_id
+          }
+        })
       }
 
       // Delete images associated with the product
@@ -1004,6 +1055,7 @@ productRouter.delete("/delete/:product_id", adminAuthMiddleware, async (req, res
           }
         });
       }
+
 
       // Finally, delete the product itself
       await transaction.product.delete({

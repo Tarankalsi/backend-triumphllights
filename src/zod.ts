@@ -4,7 +4,6 @@ import zod from "zod";
 export const productSchema = zod.object({
     name: zod.string(),
     description: zod.string(),
-    price: zod.number(),
     availability: zod.number(),
     SKU: zod.string().toUpperCase(),
     discount_percent: zod.number().optional(),
@@ -22,10 +21,10 @@ export const productSchema = zod.object({
     light_color_temperature: zod.string().optional(),
     included_components: zod.string().optional(),
     lighting_method: zod.string().optional(),
-    item_weight: zod.string(),
-    height: zod.string(),
-    length: zod.string(),
-    width: zod.string(),
+    item_weight: zod.number(),
+    height: zod.number(),
+    length: zod.number(),
+    width: zod.number(),
     quantity: zod.string().optional(),
     power_rating: zod.string().optional(),
     brightness: zod.string().optional(),
@@ -48,12 +47,17 @@ export const productSchema = zod.object({
             hex: zod.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color"),
         })
     ),
+    watts: zod.array(
+        zod.object({
+            watt: zod.number(),
+            price: zod.number()
+        })
+    )
 })
 
 export const pdUpdateSchema = zod.object({
     name: zod.string().optional(),
     description: zod.string().optional(),
-    price: zod.number().optional(),
     availability: zod.number().optional(),
     SKU: zod.string().toUpperCase().optional(),
     material: zod.string().optional(),
@@ -70,10 +74,10 @@ export const pdUpdateSchema = zod.object({
     light_color_temperature: zod.string().optional(),
     included_components: zod.string().optional(),
     lighting_method: zod.string().optional(),
-    item_weight: zod.string(),
-    height: zod.string().optional(),
-    length: zod.string().optional(),
-    width: zod.string().optional(),
+    item_weight: zod.number().optional(),
+    height: zod.number().optional(),
+    length: zod.number().optional(),
+    width: zod.number().optional(),
     quantity: zod.string().optional(),
     power_rating: zod.string().optional(),
     brightness: zod.string().optional(),
@@ -95,8 +99,13 @@ export const pdUpdateSchema = zod.object({
             color_name: zod.string(),
             hex: zod.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color"),
         })
-    )
-        .optional(),
+    ).optional(),
+    watts: zod.array(
+        zod.object({
+            watt: zod.number(),
+            price: zod.number()
+        })
+    ).optional()
 })
 
 
@@ -181,7 +190,7 @@ export const createOrderSchema = zod.object({
         PaymentMethod.NetBanking,
         PaymentMethod.UPI
     ]),
-    address_id: zod.string(), 
+    address_id: zod.string(),
 })
 
 
