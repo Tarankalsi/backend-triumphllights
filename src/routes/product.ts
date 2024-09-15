@@ -6,7 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import statusCode from "../statusCode";
 import handleErrorResponse, { CustomError } from "../utils/handleErrorResponse";
 import { deleteObjectS3, uploadImageS3 } from '../utils/s3';
-import { adminAuthMiddleware } from '../middleware/auth.middleware';
+import { adminAuthMiddleware, userAuthMiddleware } from '../middleware/auth.middleware';
 
 const productRouter = Router();
 const prisma = new PrismaClient();
@@ -769,6 +769,7 @@ productRouter.get('/search', async (req, res) => {
         },
         images: true,
         reviews: true,
+        watts:true
       },
     });
 
@@ -1075,6 +1076,13 @@ productRouter.delete("/delete/:product_id", adminAuthMiddleware, async (req, res
   }
 });
 
+productRouter.delete('/delete/all/color' , adminAuthMiddleware , async (req,res)=>{
+   await prisma.color.deleteMany({})
+   return res.status(statusCode.OK).json({
+     success: true,
+     message: "Colors deleted successfully"
+})
+})
 
 
 
