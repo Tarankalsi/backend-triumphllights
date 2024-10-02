@@ -7,7 +7,7 @@ import statusCode from '../statusCode';
 import handleErrorResponse, { CustomError } from '../utils/handleErrorResponse';
 import jwt from 'jsonwebtoken';
 import { checkAdminsExist } from '../middleware/checkAdminsExist.middleware';
-import { sendEmail } from '../utils/sendEmail';
+import { sendEmail, sendEmailBrevo } from '../utils/sendEmail';
 import { generateAlphanumericOTP, generateOrUpdateOTP, typeProp } from '../utils/otpHandler';
 
 
@@ -104,7 +104,7 @@ adminRouter.post('/signup', checkAdminsExist, async (req, res) => {
                     html : html
                 }
 
-                const response = await sendEmail(emailData)
+                const response = await sendEmailBrevo(emailData)
 
                 return res.status(statusCode.CREATED).json({
                     success: true,
@@ -274,7 +274,7 @@ adminRouter.post('/signin', async (req, res) => {
             html: html
         }
 
-        const respone = await sendEmail(emailData)
+        const respone = await sendEmailBrevo(emailData)
    
     
         return res.status(statusCode.OK).json({
@@ -384,7 +384,7 @@ adminRouter.post('/sendEmail', async (req,res)=>{
         html:`<p>Hello Taranjit Singh</p>`
     }
     try {
-        const email = sendEmail(details)
+        const email = sendEmailBrevo(details)
 
 
         return res.json({

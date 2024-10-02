@@ -115,11 +115,11 @@ productRouter.post("/create/product/:category_id", adminAuthMiddleware, async (r
   try {
     // Check if the category exists
     const categoryId = req.params.category_id;
-    console.log(categoryId)
+ 
     const category = await prisma.category.findUnique({
       where: { category_id: categoryId },
     });
-    console.log("category" , category)
+
 
     if (!category) {
       return res.status(statusCode.BAD_REQUEST).json({

@@ -157,8 +157,6 @@ export const selectBestCourier = async (packageDetails: PackageDetails) => {
       (address: any) => address.pickup_location === packageDetails.pickup_address_location
     )?.pin_code;
 
-    console.log("Pickup location :", pickupPincode)
-    console.log("package details :", packageDetails)
     if (!pickupPincode) {
       throw new Error('Pickup pincode not found for the specified pickup address location.');
     }

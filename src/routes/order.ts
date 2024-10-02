@@ -10,7 +10,7 @@ import { adminAuthMiddleware, userAuthMiddleware } from '../middleware/auth.midd
 import { billing } from '../utils/calculationHelper';
 import { cancelShiprocketOrder, createShiprocketShipment, generateAWBCode, generateLabel, generateManifest, getTracking, requestPickup, selectBestCourier } from '../utils/Shiprocket';
 import axios from 'axios';
-import { sendEmail } from '../utils/sendEmail';
+import { sendEmail, sendEmailBrevo } from '../utils/sendEmail';
 import { formatDateTime } from '../utils/formatDate';
 
 const orderRouter = Router();
@@ -329,6 +329,7 @@ orderRouter.post("/create", userAuthMiddleware, async (req, res) => {
         </tbody>
       </table>
       <p><strong>Subtotal:</strong> Rs. ${bill.subTotal}</p>
+      <p><strong>Discount:</strong> Rs. ${bill.discount}</p>
       <p><strong>Tax:</strong> Rs. ${bill.tax}</p>
       <p><strong>Shipping Charges:</strong> Rs. ${bill.deliveryFee}</p>
       <p><strong>Total Amount:</strong> Rs. ${bill.total}</p>
@@ -343,7 +344,7 @@ orderRouter.post("/create", userAuthMiddleware, async (req, res) => {
 </html>`;
 
 
-        await sendEmail({
+        await sendEmailBrevo({
           to: user.email,
           subject: "Order Confirmation - Triumph Lights",
           message: "Thank You for Your Order",

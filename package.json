@@ -19,7 +19,9 @@
     "@aws-sdk/credential-providers": "^3.621.0",
     "@aws-sdk/s3-request-presigner": "^3.620.0",
     "@aws-sdk/types": "^3.609.0",
+    "@getbrevo/brevo": "^2.2.0",
     "@prisma/client": "^5.17.0",
+    "@sendinblue/client": "^3.3.1",
     "@types/express": "^4.17.21",
     "@types/node-cron": "^3.0.11",
     "aws-sdk": "^2.1664.0",
@@ -35,6 +37,7 @@
     "node-cron": "^3.0.3",
     "npm-check-updates": "^16.14.20",
     "prisma": "^5.17.0",
+    "sib-api-v3-sdk": "^8.5.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.5.3",
     "zod": "^3.23.8"

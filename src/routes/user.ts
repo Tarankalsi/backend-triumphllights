@@ -9,7 +9,7 @@ import { upload } from '../middleware/multer.middleware';
 import { deleteFromCloudinary, uploadOnCloudinary } from '../utils/cloudinary';
 import { userAuthMiddleware } from '../middleware/auth.middleware';
 import { generateAlphanumericOTP, generateOrUpdateOTP, typeProp } from '../utils/otpHandler';
-import { sendEmail } from '../utils/sendEmail';
+import { sendEmail, sendEmailBrevo } from '../utils/sendEmail';
 import { userIsLoggedIn } from '../middleware/userIsLoggedIn.middleware';
 import { deleteObjectS3, uploadImageS3 } from '../utils/s3';
 import { billing } from '../utils/calculationHelper';
@@ -81,7 +81,7 @@ userRouter.post('/signup', async (req, res) => {
             html: html
         }
 
-        await sendEmail(emailData)
+        await sendEmailBrevo(emailData)
 
         return res.status(statusCode.OK).json({
             success: true,
@@ -136,7 +136,7 @@ userRouter.post('/signin', async (req, res) => {
             html: html
         }
 
-        await sendEmail(emailData)
+        await sendEmailBrevo(emailData)
 
         return res.status(statusCode.OK).json({
             success: true,
@@ -154,7 +154,7 @@ userRouter.post('/otp-verification/:user_id', async (req, res) => {
     const user_id = req.params.user_id
     const { success, error } = otpVerificationSchema.safeParse(body)
     const now = new Date();
-
+    
     if (!success) {
         return res.status(statusCode.BAD_REQUEST).json({
             success: false,
